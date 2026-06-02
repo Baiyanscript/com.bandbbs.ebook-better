@@ -1,0 +1,137 @@
+<template>
+  <div class="page" style="flex-direction: column;">
+    <list class="list">
+      <list-item class="item" type="item">
+        <div class="item-content">
+          <text class="itemtext">启用边缘左滑</text>
+          <text class="itemtext2">右边缘30px内左滑触发</text>
+        </div>
+        <img src="{{enabled ? '/common/images/Switch_ON.png' : '/common/images/Switch_OFF.png'}}" @click="toggleEnabled" style="width:40px;height: 30px;" />
+      </list-item>
+      <list-item class="item" type="item" if="{{enabled}}">
+        <div class="item-content" @click="cycleAction">
+          <text class="itemtext">触发动作</text>
+          <text class="itemtext2">{{actionLabel}}</text>
+        </div>
+        <img src="/common/images/enter.png" @click="cycleAction" style="width: 32px; height: 32px;" />
+      </list-item>
+    </list>
+    <img src="/common/images/hd.png" style="position: absolute; left: 0px; top: 0px; width: 212px; height: 82px;" />
+    <text style="position: absolute; top: 16px; width: 212px; line-height: 32px; font-weight: bold; font-size: 18px; color: rgba(255,255,255,0.6); text-align: center;">{{nowTime}}</text>
+    <text style="position: absolute; top: 36px; width: 212px; line-height: 42px; font-weight: bold; font-size: 26px; color: white; text-align: center;">边缘左滑</text>
+  </div>
+</template>
+
+<script>
+import storage from '../../utils/storage.js'
+import prompt from '@system.prompt'
+
+const ACTIONS = [
+  { value: 'bookmarks', label: '书签管理' },
+  { value: 'bookinfo', label: '本书详情' },
+  { value: 'more', label: '全局设置' },
+  { value: 'brightness', label: '字体亮度' },
+  { value: 'chapterList', label: '章节列表' },
+  { value: 'readingTime', label: '阅读时长' },
+  { value: 'share', label: '分享' }
+]
+
+export default {
+  private: {
+    enabled: false,
+    action: 'bookmarks',
+    actionLabel: '书签管理',
+    nowTime: '00:00',
+    timer: null,
+    timeFormat: '24h'
+  },
+  onInit() {
+    storage.get({ key: 'EBOOK_TIME_FORMAT', success: (data) => { if (data) this.timeFormat = data; this.updateTime() }, fail: () => { this.updateTime() } })
+    storage.get({ key: 'EBOOK_EDGE_SWIPE_ENABLED', success: (data) => { this.enabled = data === 'true' } })
+    storage.get({ key: 'EBOOK_EDGE_SWIPE_ACTION', success: (data) => {
+      this.action = data || 'bookmarks'
+      const found = ACTIONS.find(a => a.value === this.action)
+      this.actionLabel = found ? found.label : '书签管理'
+    }})
+    this.timer = setInterval(() => { this.updateTime() }, 1000)
+  },
+  onDestroy() {
+    if (this.timer) { clearInterval(this.timer); this.timer = null }
+  },
+  updateTime() {
+    const date = new Date()
+    let hours = date.getHours()
+    let minutes = date.getMinutes()
+    if (this.timeFormat === '12h') {
+      let ampm = hours >= 12 ? '下午' : '上午'
+      hours = hours % 12 || 12
+      minutes = minutes < 10 ? '0' + minutes : minutes
+      this.nowTime = `${ampm} ${hours}:${minutes}`
+    } else {
+      hours = hours < 10 ? '0' + hours : hours
+      minutes = minutes < 10 ? '0' + minutes : minutes
+      this.nowTime = `${hours}:${minutes}`
+    }
+  },
+  toggleEnabled() {
+    this.enabled = !this.enabled
+    storage.set({ key: 'EBOOK_EDGE_SWIPE_ENABLED', value: this.enabled.toString() })
+    prompt.showToast({ message: this.enabled ? '已开启边缘左滑' : '已关闭边缘左滑' })
+  },
+  cycleAction() {
+    const currentIdx = ACTIONS.findIndex(a => a.value === this.action)
+    const nextIdx = (currentIdx + 1) % ACTIONS.length
+    this.action = ACTIONS[nextIdx].value
+    this.actionLabel = ACTIONS[nextIdx].label
+    storage.set({ key: 'EBOOK_EDGE_SWIPE_ACTION', value: this.action })
+    prompt.showToast({ message: `已切换为: ${this.actionLabel}` })
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 212px;
+  height: 520px;
+  background-color: #000000;
+}
+.list {
+  width: 212px;
+  height: 520px;
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  padding: 86px 12px;
+}
+.item {
+  width: 100%;
+  height: 85px;
+  padding: 12px 18px;
+  margin-bottom: 8px;
+  background-color: #262626;
+  border-radius: 26px;
+  align-items: center;
+  justify-content: space-between;
+}
+.itemtext {
+  font-size: 23px;
+  width: 100%;
+  font-weight: bold;
+  color: white;
+  text-overflow: ellipsis;
+  lines: 1;
+}
+.itemtext2 {
+  font-size: 20px;
+  font-weight: bold;
+  color: rgba(255,255,255,0.6);
+  text-overflow: ellipsis;
+  lines: 1;
+}
+.item-content {
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+}
+</style>

@@ -1,0 +1,99 @@
+<template>
+	<div class="page" style="flex-direction: column;">
+		<list class="list">
+			<list-item class="item" type="item">
+				<div class="item-content">
+					<text class="itemtext">书架进度条</text>
+					<text class="itemtext2">书名下方显示进度</text>
+				</div>
+				<img src="{{shelfProgressBar ? '/common/images/Switch_ON.png' : '/common/images/Switch_OFF.png'}}" @click="toggle('shelfProgressBar', 'EBOOK_UX_SHELF_PROGRESS_BAR')" style="width:40px;height: 30px;" />
+			</list-item>
+			<list-item class="item" type="item">
+				<div class="item-content">
+					<text class="itemtext">亮度手势调节</text>
+					<text class="itemtext2">左边缘上下滑调亮度</text>
+				</div>
+				<img src="{{brightnessGesture ? '/common/images/Switch_ON.png' : '/common/images/Switch_OFF.png'}}" @click="toggle('brightnessGesture', 'EBOOK_UX_BRIGHTNESS_GESTURE')" style="width:40px;height: 30px;" />
+			</list-item>
+			<list-item class="item" type="item">
+				<div class="item-content">
+					<text class="itemtext">搜索历史记录</text>
+					<text class="itemtext2">保存最近5次搜索</text>
+				</div>
+				<img src="{{searchHistory ? '/common/images/Switch_ON.png' : '/common/images/Switch_OFF.png'}}" @click="toggle('searchHistory', 'EBOOK_UX_SEARCH_HISTORY')" style="width:40px;height: 30px;" />
+			</list-item>
+			<list-item class="item" type="item">
+				<div class="item-content">
+					<text class="itemtext">自动翻页调速</text>
+					<text class="itemtext2">长按上下调速度</text>
+				</div>
+				<img src="{{autoSpeedControl ? '/common/images/Switch_ON.png' : '/common/images/Switch_OFF.png'}}" @click="toggle('autoSpeedControl', 'EBOOK_UX_AUTO_SPEED_CONTROL')" style="width:40px;height: 30px;" />
+			</list-item>
+			<list-item class="item" type="item">
+				<div class="item-content">
+					<text class="itemtext">章节位置标记</text>
+					<text class="itemtext2">当前章节加 ▶ 标记</text>
+				</div>
+				<img src="{{chapterMarker ? '/common/images/Switch_ON.png' : '/common/images/Switch_OFF.png'}}" @click="toggle('chapterMarker', 'EBOOK_UX_CHAPTER_MARKER')" style="width:40px;height: 30px;" />
+			</list-item>
+		</list>
+		<img src="/common/images/hd.png" style="position: absolute; left: 0px; top: 0px; width: 212px; height: 82px;" />
+		<text style="position: absolute; top: 16px; width: 212px; line-height: 32px; font-weight: bold; font-size: 18px; color: rgba(255,255,255,0.6); text-align: center;">{{nowTime}}</text>
+		<text style="position: absolute; top: 36px; width: 212px; line-height: 42px; font-weight: bold; font-size: 26px; color: white; text-align: center;">体验增强</text>
+	</div>
+</template>
+
+<script>
+import storage from '../../utils/storage.js'
+import prompt from '@system.prompt'
+
+export default {
+	private: {
+		shelfProgressBar: false,
+		brightnessGesture: false,
+		searchHistory: false,
+		autoSpeedControl: false,
+		chapterMarker: false,
+		nowTime: '00:00',
+		timer: null,
+		timeFormat: '24h'
+	},
+	onInit() {
+		storage.get({ key: 'EBOOK_TIME_FORMAT', success: (data) => { if (data) this.timeFormat = data; this.updateTime() }, fail: () => { this.updateTime() } })
+		this.timer = setInterval(() => { this.updateTime() }, 1000)
+		this.loadAll()
+	},
+	onDestroy() { if (this.timer) { clearInterval(this.timer); this.timer = null } },
+	updateTime() {
+		const date = new Date(); let h = date.getHours(); let m = date.getMinutes()
+		if (this.timeFormat === '12h') { let ap = h >= 12 ? '下午' : '上午'; h = h % 12 || 12; m = m < 10 ? '0' + m : m; this.nowTime = `${ap} ${h}:${m}` }
+		else { h = h < 10 ? '0' + h : h; m = m < 10 ? '0' + m : m; this.nowTime = `${h}:${m}` }
+	},
+	loadAll() {
+		const map = [
+			['EBOOK_UX_SHELF_PROGRESS_BAR', 'shelfProgressBar'],
+			['EBOOK_UX_BRIGHTNESS_GESTURE', 'brightnessGesture'],
+			['EBOOK_UX_SEARCH_HISTORY', 'searchHistory'],
+			['EBOOK_UX_AUTO_SPEED_CONTROL', 'autoSpeedControl'],
+			['EBOOK_UX_CHAPTER_MARKER', 'chapterMarker']
+		]
+		map.forEach(([key, prop]) => {
+			storage.get({ key, success: (data) => { this[prop] = data === 'true' } })
+		})
+	},
+	toggle(prop, key) {
+		this[prop] = !this[prop]
+		storage.set({ key, value: this[prop].toString() })
+		prompt.showToast({ message: this[prop] ? '已开启' : '已关闭' })
+	}
+}
+</script>
+
+<style>
+.page { width: 212px; height: 520px; background-color: #000000; }
+.list { width: 212px; height: 520px; position: absolute; top: 0px; left: 0px; padding: 86px 12px; }
+.item { width: 100%; height: 85px; padding: 12px 18px; margin-bottom: 8px; background-color: #262626; border-radius: 26px; align-items: center; justify-content: space-between; }
+.itemtext { font-size: 23px; width: 100%; font-weight: bold; color: white; text-overflow: ellipsis; lines: 1; }
+.itemtext2 { font-size: 20px; font-weight: bold; color: rgba(255,255,255,0.6); text-overflow: ellipsis; lines: 1; }
+.item-content { height: 100%; flex: 1; flex-direction: column; justify-content: space-between; }
+</style>

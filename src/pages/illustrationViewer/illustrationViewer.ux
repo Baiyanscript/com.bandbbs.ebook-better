@@ -1,0 +1,73 @@
+<template>
+    <div class="page">
+        <scroll scroll-y="{{true}}" class="viewer">
+            <img src="{{imageUri}}" class="image" />
+        </scroll>
+        <img static src="/common/images/hd.png" class="header-bg" />
+        <text class="title">{{title}}</text>
+    </div>
+</template>
+
+<script>
+    import router from '@system.router';
+
+    export default {
+        private: {
+            title: '插图',
+            imageUri: ''
+        },
+
+        onInit() {
+            this.title = this.pageTitle || '插图';
+            this.imageUri = this.pageImageUri || '';
+        },
+
+        back() {
+            router.back();
+        }
+    }
+</script>
+
+<style>
+    .page {
+        width: 212px;
+        height: 520px;
+        background-color: #000000;
+    }
+
+    .viewer {
+        position: absolute;
+        left: 0px;
+        top: 82px;
+        width: 212px;
+        height: 438px;
+    }
+
+    .image {
+        width: 212px;
+        min-height: 438px;
+        object-fit: contain;
+        background-color: #000000;
+    }
+
+    .header-bg {
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        width: 212px;
+        height: 82px;
+    }
+
+    .title {
+        position: absolute;
+        left: 40px;
+        top: 36px;
+        width: 132px;
+        line-height: 42px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #ffffff;
+        text-align: center;
+        lines: 1;
+    }
+</style>

@@ -1,0 +1,175 @@
+<template>
+  <div class="page" style="flex-direction: column;">
+    <list class="list">
+      <list-item type="header" class="header-item">
+        <text class="header-text">选择分享内容</text>
+      </list-item>
+      <list-item type="info" class="item" if="{{chapterName}}">
+        <text class="itemtext2">章节: {{chapterName}}</text>
+      </list-item>
+      <list-item type="info" class="item" if="{{!chapterName && !errorMsg}}">
+        <text class="itemtext2">加载中...</text>
+      </list-item>
+      <list-item type="info" class="item" if="{{selectedText}}">
+        <text class="itemtext2" style="lines: 2; font-size: 16px;">已选 {{selectedText.length}} 字: {{selectedText}}</text>
+      </list-item>
+      <list-item type="info" class="item" if="{{paragraphs.length > 0}}">
+        <div class="item-content">
+          <text class="itemtext">开始段落 (共{{paragraphs.length}}段)</text>
+        </div>
+        <div style="flex-direction: row; align-items: center;">
+          <text style="font-size: 22px; color: white; margin-right: 10px;">{{startPara}}</text>
+          <img src="/common/images/plus.png" @click="incStart" style="width: 36px; height: 36px;" />
+          <img src="/common/images/minis.png" @click="decStart" style="width: 36px; height: 36px; margin-left: 4px;" />
+        </div>
+      </list-item>
+      <list-item type="info" class="item" if="{{paragraphs.length > 0}}">
+        <div class="item-content">
+          <text class="itemtext">结束段落</text>
+        </div>
+        <div style="flex-direction: row; align-items: center;">
+          <text style="font-size: 22px; color: white; margin-right: 10px;">{{endPara}}</text>
+          <img src="/common/images/plus.png" @click="incEnd" style="width: 36px; height: 36px;" />
+          <img src="/common/images/minis.png" @click="decEnd" style="width: 36px; height: 36px; margin-left: 4px;" />
+        </div>
+      </list-item>
+      <list-item type="info" class="item" if="{{errorMsg}}">
+        <text style="font-size: 18px; color: #e74c3c; text-align: center; width: 100%;">{{errorMsg}}</text>
+      </list-item>
+      <list-item type="button" class="item button-item" @click="generateQR" if="{{paragraphs.length > 0}}">
+        <text class="itemtext" style="text-align: center;">生成二维码</text>
+      </list-item>
+    </list>
+    <img src="/common/images/hd.png" style="position: absolute; left: 0px; top: 0px; width: 212px; height: 82px;" />
+    <text style="position: absolute; top: 16px; width: 212px; line-height: 32px; font-weight: bold; font-size: 18px; color: rgba(255,255,255,0.6); text-align: center;">{{nowTime}}</text>
+    <text style="position: absolute; top: 36px; width: 212px; line-height: 42px; font-weight: bold; font-size: 26px; color: white; text-align: center;">分享</text>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import file from '@system.file'
+import storage from '../../utils/storage.js'
+import chapterManager from '../../utils/chapterManager.js'
+
+export default {
+  private: {
+    chapterName: '',
+    chapterContent: '',
+    paragraphs: [],
+    startPara: 1,
+    endPara: 1,
+    selectedText: '',
+    errorMsg: '',
+    nowTime: '00:00',
+    timer: null,
+    timeFormat: '24h'
+  },
+  protected: {
+    name: '',
+    chapterIndex: '0',
+    bookmarkOffset: '-1'
+  },
+  onInit() {
+    storage.get({ key: 'EBOOK_TIME_FORMAT', success: (data) => { if (data) this.timeFormat = data; this.updateTime() }, fail: () => { this.updateTime() } })
+    this.timer = setInterval(() => { this.updateTime() }, 1000)
+  },
+  onShow() {
+    this.loadChapter()
+  },
+  onDestroy() {
+    if (this.timer) { clearInterval(this.timer); this.timer = null }
+  },
+  updateTime() {
+    const date = new Date()
+    let hours = date.getHours()
+    let minutes = date.getMinutes()
+    if (this.timeFormat === '12h') {
+      let ampm = hours >= 12 ? '下午' : '上午'
+      hours = hours % 12 || 12
+      minutes = minutes < 10 ? '0' + minutes : minutes
+      this.nowTime = `${ampm} ${hours}:${minutes}`
+    } else {
+      hours = hours < 10 ? '0' + hours : hours
+      minutes = minutes < 10 ? '0' + minutes : minutes
+      this.nowTime = `${hours}:${minutes}`
+    }
+  },
+  async loadChapter() {
+    try {
+      if (!this.name) { this.errorMsg = '未指定书籍'; return }
+      const chIdx = parseInt(this.chapterIndex) || 0
+      const chapter = await chapterManager.getChapterByIndex(this.name, chIdx)
+      if (!chapter) { this.errorMsg = '章节不存在'; return }
+      this.chapterName = chapter.name
+      const chapterFileIndex = chapter.index !== undefined ? chapter.index : chIdx
+      const cPath = `internal://files/books/${this.name}/content/${chapterFileIndex}.txt`
+      const self = this
+      file.readText({
+        uri: cPath,
+        success: function(data) {
+          self.chapterContent = data.text || ''
+          if (self.chapterContent.length === 0) { self.errorMsg = '章节内容为空'; return }
+          self.paragraphs = self.chapterContent.split('\n').filter(function(p) { return p.trim().length > 0 })
+          if (self.paragraphs.length === 0) { self.errorMsg = '章节无有效段落'; return }
+          self.endPara = Math.min(self.paragraphs.length, 5)
+          self.updateSelectedText()
+        },
+        fail: function(d, code) { self.errorMsg = '读取失败: ' + (code || 'unknown') }
+      })
+    } catch (e) { this.errorMsg = '异常: ' + (e.message || e) }
+  },
+  incStart() {
+    if (this.startPara < this.paragraphs.length) {
+      this.startPara++
+      if (this.startPara > this.endPara) this.endPara = this.startPara
+      this.updateSelectedText()
+    }
+  },
+  decStart() {
+    if (this.startPara > 1) { this.startPara--; this.updateSelectedText() }
+  },
+  incEnd() {
+    if (this.endPara < this.paragraphs.length) { this.endPara++; this.updateSelectedText() }
+  },
+  decEnd() {
+    if (this.endPara > this.startPara) { this.endPara--; this.updateSelectedText() }
+  },
+  updateSelectedText() {
+    const selected = this.paragraphs.slice(this.startPara - 1, this.endPara).join('\n')
+    this.selectedText = selected.length > 180 ? selected.substring(0, 180) : selected
+    this.errorMsg = ''
+  },
+  generateQR() {
+    if (!this.selectedText || this.selectedText.length === 0) {
+      this.errorMsg = '请选择内容'
+      return
+    }
+    if (this.selectedText.length > 180) {
+      this.errorMsg = '超过180字限制'
+      return
+    }
+    router.push({
+      uri: '/pages/shareQR',
+      params: {
+        shareText: this.selectedText,
+        bookName: this.name,
+        chapterName: this.chapterName
+      }
+    })
+  },
+  back() { router.back() }
+}
+</script>
+
+<style>
+.page { width: 212px; height: 520px; background-color: #000000; }
+.list { width: 212px; height: 520px; position: absolute; top: 0px; left: 0px; padding: 86px 12px; }
+.item { width: 100%; padding: 12px 18px; margin-bottom: 8px; background-color: #262626; border-radius: 26px; align-items: center; justify-content: space-between; }
+.header-item { width: 100%; height: 48px; margin-bottom: 8px; justify-content: center; align-items: center; }
+.header-text { font-size: 20px; font-weight: bold; color: rgba(255,255,255,0.6); text-align: center; }
+.button-item { height: 72px; justify-content: center; }
+.itemtext { font-size: 22px; width: 100%; font-weight: bold; color: white; text-overflow: ellipsis; lines: 1; }
+.itemtext2 { font-size: 18px; font-weight: bold; color: rgba(255,255,255,0.6); width: 100%; }
+.item-content { flex: 1; flex-direction: column; justify-content: space-between; }
+</style>

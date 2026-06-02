@@ -1,0 +1,191 @@
+<template>
+  <div class="page" style="flex-direction: column; align-items: center;">
+    <text style="position: absolute; top: 30px; width: 212px; text-align: center; font-size: 24px; font-weight: bold; color: white;">隐私锁定</text>
+
+    <div if="{{unlockMethod === 'pin'}}" style="flex-direction: column; align-items: center; position: absolute; top: 70px;">
+      <div class="pin-display">
+        <text class="pin-dot">{{pinLen >= 1 ? '●' : '○'}}</text>
+        <text class="pin-dot">{{pinLen >= 2 ? '●' : '○'}}</text>
+        <text class="pin-dot">{{pinLen >= 3 ? '●' : '○'}}</text>
+        <text class="pin-dot">{{pinLen >= 4 ? '●' : '○'}}</text>
+      </div>
+      <text if="{{errorMsg}}" style="font-size: 16px; color: #e74c3c; text-align: center; margin-top: 6px;">{{errorMsg}}</text>
+
+      <div class="keypad">
+        <div class="key-row">
+          <div class="key" @click="pressKey('1')"><text class="key-t">1</text></div>
+          <div class="key" @click="pressKey('2')"><text class="key-t">2</text></div>
+          <div class="key" @click="pressKey('3')"><text class="key-t">3</text></div>
+        </div>
+        <div class="key-row">
+          <div class="key" @click="pressKey('4')"><text class="key-t">4</text></div>
+          <div class="key" @click="pressKey('5')"><text class="key-t">5</text></div>
+          <div class="key" @click="pressKey('6')"><text class="key-t">6</text></div>
+        </div>
+        <div class="key-row">
+          <div class="key" @click="pressKey('7')"><text class="key-t">7</text></div>
+          <div class="key" @click="pressKey('8')"><text class="key-t">8</text></div>
+          <div class="key" @click="pressKey('9')"><text class="key-t">9</text></div>
+        </div>
+        <div class="key-row">
+          <div class="key key-empty"></div>
+          <div class="key" @click="pressKey('0')"><text class="key-t">0</text></div>
+          <div class="key" @click="pressDel"><text class="key-t">←</text></div>
+        </div>
+      </div>
+    </div>
+
+    <div if="{{unlockMethod === 'tap'}}" style="position: absolute; top: 80px; width: 212px; flex-direction: column; align-items: center;">
+      <text style="font-size: 16px; color: rgba(255,255,255,0.6); text-align: center; margin-bottom: 10px;">快速点击下方区域5次解锁</text>
+      <text style="font-size: 28px; color: white; text-align: center;">{{tapCount}} / 5</text>
+      <div class="tap-area" @click="onTapArea">
+        <text style="font-size: 18px; color: rgba(255,255,255,0.5);">点击此处</text>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import storage from '../../utils/storage.js'
+
+export default {
+  private: {
+    unlockMethod: 'tap',
+    pin: '0000',
+    pinInput: '',
+    pinLen: 0,
+    errorMsg: '',
+    tapCount: 0,
+    tapTimeout: null,
+    failCount: 0
+  },
+  onInit() {
+    var self = this
+    storage.get({ key: 'EBOOK_PRIVACY_UNLOCK_METHOD', success: function(data) { self.unlockMethod = data || 'tap' } })
+    storage.get({ key: 'EBOOK_PRIVACY_PIN', success: function(data) { self.pin = data || '0000' } })
+    storage.get({ key: 'EBOOK_PRIVACY_FAIL_COUNT', success: function(data) { self.failCount = parseInt(data) || 0 } })
+  },
+  onBackPress() {
+    return true
+  },
+  pressKey(key) {
+    if (this.pinInput.length >= 4) return
+    this.pinInput += key
+    this.pinLen = this.pinInput.length
+    this.errorMsg = ''
+    if (this.pinInput.length === 4) {
+      this.checkPin()
+    }
+  },
+  pressDel() {
+    if (this.pinInput.length > 0) {
+      this.pinInput = this.pinInput.slice(0, -1)
+      this.pinLen = this.pinInput.length
+    }
+  },
+  checkPin() {
+    if (this.pinInput === this.pin) {
+      this.failCount = 0
+      storage.set({ key: 'EBOOK_PRIVACY_FAIL_COUNT', value: '0' })
+      this.unlockSuccess()
+    } else {
+      this.failCount++
+      storage.set({ key: 'EBOOK_PRIVACY_FAIL_COUNT', value: this.failCount.toString() })
+      this.pinInput = ''
+      this.pinLen = 0
+      this.errorMsg = '密码错误 (' + this.failCount + '次)'
+      if (this.failCount >= 3) {
+        this.askClearData()
+      }
+    }
+  },
+  onTapArea() {
+    if (this.tapTimeout) clearTimeout(this.tapTimeout)
+    this.tapCount++
+    if (this.tapCount >= 5) {
+      this.tapCount = 0
+      this.unlockSuccess()
+      return
+    }
+    var self = this
+    this.tapTimeout = setTimeout(function() { self.tapCount = 0 }, 1000)
+  },
+  unlockSuccess() {
+    globalThis.privacyUnlocked = true
+    router.replace({ uri: '/pages/index' })
+  },
+  askClearData() {
+    router.push({
+      uri: '/pages/confirm',
+      params: {
+        action: 'clearPrivacyData',
+        title: '密码错误',
+        confirmText: '密码错误次数过多',
+        subText: '是否清除所有数据？'
+      }
+    })
+  },
+  onDestroy() {
+    if (this.tapTimeout) clearTimeout(this.tapTimeout)
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 212px;
+  height: 520px;
+  background-color: #000000;
+}
+.pin-display {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+.pin-dot {
+  font-size: 28px;
+  color: white;
+  margin: 0 6px;
+}
+.keypad {
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+}
+.key-row {
+  flex-direction: row;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.key {
+  width: 56px;
+  height: 46px;
+  background-color: #333333;
+  border-radius: 10px;
+  justify-content: center;
+  align-items: center;
+  margin: 0 4px;
+}
+.key-empty {
+  background-color: transparent;
+}
+.key-t {
+  font-size: 22px;
+  font-weight: bold;
+  color: white;
+}
+.tap-area {
+  width: 160px;
+  height: 160px;
+  border-radius: 80px;
+  background-color: #262626;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  border-width: 2px;
+  border-color: rgba(255,255,255,0.1);
+}
+</style>
